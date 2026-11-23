@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 在股市分析上的應用與問題：大學生金融實證通識</title>
+  <style>
+    :root {
+      --navy: #1b365d;
+      --navy-2: #2c5282;
+      --navy-tint: #eef3fa;
+      --bg: #ffffff;
+      --page: #e9edf3;
+      --card-bg: #f7f9fc;
+      --card-border: #dbe2ec;
+      --text-main: #1f2937;
+      --text-muted: #5b6472;
+      --accent-cyan: #0e6b8a;
+      --accent-blue: #2c5282;
+      --accent-indigo: #3f4fa0;
+      --accent-emerald: #0f7a55;
+      --accent-rose: #b42335;
+      --accent-amber: #a85b06;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", -apple-system, "Segoe UI", sans-serif;
+      background: var(--page);
+      color: var(--text-main);
+      overflow: hidden;
+    }
+    /* fixed 16:9 stage, scaled to fit the window */
+    #stage {
+      width: 1280px; height: 720px;
+      position: absolute; left: 50%; top: 50%;
+      transform-origin: center center;
+      transform: translate(-50%, -50%) scale(var(--scale, 1));
+      background: var(--bg);
+      border-radius: 6px;
+      box-shadow: 0 10px 30px rgba(27, 54, 93, 0.18);
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    #progress-bar { height: 4px; width: 8%; background: var(--navy); transition: width 0.3s ease; }
+    header {
+      padding: 10px 40px; display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 2px solid var(--navy); background: #fff;
+    }
+    .badge {
+      background: var(--navy); color: #fff; padding: 3px 12px; border-radius: 3px;
+      font-size: 0.75rem; font-weight: 700; letter-spacing: 0.05em;
+    }
+    .topic-title { font-size: 0.85rem; color: var(--text-muted); }
+    .hint { font-size: 0.75rem; color: #8a93a2; }
+    .content-box { flex: 1; position: relative; overflow: hidden; }
+    .slide {
+      position: absolute; inset: 0; padding: 20px 44px 14px 44px;
+      display: flex; flex-direction: column; justify-content: flex-start;
+      opacity: 0; visibility: hidden; transform: translateX(30px);
+      transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .slide.active { opacity: 1; visibility: visible; transform: translateX(0); }
+    .slide.prev { opacity: 0; visibility: hidden; transform: translateX(-30px); }
+    .eyebrow {
+      font-size: 0.74rem; font-weight: 700; color: var(--navy-2);
+      text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 4px;
+    }
+    .title { font-size: 2.05rem; font-weight: 800; line-height: 1.25; margin-bottom: 6px; color: var(--navy); }
+    .subtitle { font-size: 1.02rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 12px; }
+    .source {
+      margin-top: auto; padding-top: 7px; border-top: 1px solid var(--card-border);
+      font-size: 0.7rem; color: #7a8394; display: flex; align-items: center; gap: 6px;
+    }
+    .source strong { color: var(--navy); white-space: nowrap; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .card {
+      background: var(--card-bg); border: 1px solid var(--card-border);
+      border-top: 3px solid var(--navy); border-radius: 6px; padding: 16px 20px;
+    }
+    .card.accent-rose { border-top-color: var(--accent-rose); }
+    .card.accent-amber { border-top-color: var(--accent-amber); }
+    .card.accent-emerald { border-top-color: var(--accent-emerald); }
+    .card.accent-cyan { border-top-color: var(--accent-cyan); }
+    .card h3 { font-size: 1.12rem; font-weight: 700; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; color: var(--navy); }
+    .c-navy { color: var(--navy) !important; }
+    .c-rose { color: var(--accent-rose) !important; }
+    .card p { font-size: 0.96rem; color: #374151; line-height: 1.5; }
+    .card ul { list-style-type: none; padding-left: 0; }
+    .card ul li { font-size: 0.96rem; color: #374151; line-height: 1.55; margin-bottom: 7px; position: relative; padding-left: 14px; }
+    .card ul li::before { content: "•"; color: var(--navy); font-weight: 700; position: absolute; left: 0; }
+    .card code { font-size: 0.78rem; background: #e6ecf5; color: var(--navy); padding: 0 4px; border-radius: 3px; }
+    .note { font-size: 0.88rem !important; color: var(--text-muted) !important; margin-top: 8px; }
+    .stat-badge {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-weight: 700;
+      padding: 0 5px; border-radius: 3px; background: #e9eef6; color: var(--navy);
+    }
+    .stat-badge.emerald { color: var(--accent-emerald); background: #e3f3ec; }
+    .stat-badge.cyan { color: var(--accent-cyan); background: #e2f0f5; }
+    .stat-badge.rose { color: var(--accent-rose); background: #f8e5e7; }
+    .stat-badge.amber { color: var(--accent-amber); background: #f8eedf; }
+    .mini-table { width: 100%; border-collapse: collapse; font-size: 0.93rem; margin-top: 2px; }
+    .mini-table th { background: var(--navy); color: #fff; font-weight: 600; text-align: left; padding: 7px 10px; }
+    .mini-table td { padding: 7px 10px; border-bottom: 1px solid var(--card-border); color: #374151; background: #fff; }
+    .student-tip {
+      background: var(--navy-tint); border-left: 3px solid var(--navy);
+      padding: 8px 14px; border-radius: 0 4px 4px 0; margin-top: 12px;
+    }
+    .student-tip:empty { display: none; }
+    .student-tip-title { font-size: 0.86rem; font-weight: 700; color: var(--navy); margin-bottom: 2px; }
+    .student-tip-desc { font-size: 0.9rem; color: #374151; line-height: 1.45; }
+    .precedent {
+      margin-top: 10px; background: #fff; border: 1px dashed var(--navy-2); border-radius: 4px;
+      padding: 9px 14px; font-size: 0.93rem; color: #374151; line-height: 1.5;
+    }
+    .precedent strong { color: var(--navy); }
+    footer {
+      padding: 8px 40px; display: flex; justify-content: space-between; align-items: center;
+      border-top: 1px solid var(--card-border); background: #fff;
+    }
+    .btn {
+      background: #fff; border: 1px solid var(--navy); color: var(--navy);
+      padding: 5px 14px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; cursor: pointer;
+    }
+    .btn:hover { background: var(--navy); color: #fff; }
+    #counter { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.82rem; color: var(--text-muted); }
+    /* cover */
+    #slide-1 .title { color: var(--navy); }
+  </style>
+</head>
+<body>
+
+  <div id="stage">
+    <div id="progress-bar"></div>
+
+    <header>
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span class="badge">大學生金融實證入門</span>
+        <span class="topic-title">AI 在股市分析上的應用與問題</span>
+      </div>
+      <div class="hint">← → 翻頁 ｜ F 全螢幕</div>
+    </header>
+
+    <div class="content-box">
+<!-- SLIDE: Cover -->
+      <div class="slide active" id="slide-1">
+        <div class="eyebrow">Finance & AI General Education</div>
+        <h1 class="title" style="font-size: 2.3rem; margin-top: 10px; margin-bottom: 10px;">
+          AI 在股市分析上的<br>
+          <span style="color: var(--navy-2);">應用價值與實務陷阱</span>
+        </h1>
+        <p class="subtitle" style="font-size: 1.05rem; max-width: 860px; margin-bottom: 20px;">
+          寫給大學生的通識導讀：從效率市場、機器學習、深度學習到大語言模型 (ChatGPT)，五篇經典論文的實證探索
+        </p>
+
+        <div class="grid-3" style="margin-bottom: 20px;">
+          <div class="card" style="border-top: 3px solid var(--accent-cyan);">
+            <div style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 4px;">數值型機器學習</div>
+            <div style="font-size: 1.05rem; font-weight: 700; color: var(--navy);">920 個特徵淘金</div>
+            <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px;">
+              從動能、波動與流動性中捕捉非線性超額報酬
+            </p>
+          </div>
+          <div class="card" style="border-top: 3px solid var(--accent-emerald);">
+            <div style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 4px;">大語言模型</div>
+            <div style="font-size: 1.05rem; font-weight: 700; color: var(--navy);">解讀財經新聞頭條</div>
+            <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px;">
+              零樣本判斷開盤多空方向與事後價格漂移
+            </p>
+          </div>
+          <div class="card" style="border-top: 3px solid var(--accent-rose);">
+            <div style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 4px;">真實世界難題</div>
+            <div style="font-size: 1.05rem; font-weight: 700; color: var(--navy);">高換手與 Alpha 消亡</div>
+            <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px;">
+              極低訊噪比、交易成本摩擦與 AI 普及後的套利抹平
+            </p>
+          </div>
+        </div>
+
+        <div class="student-tip">
+          <div class="student-tip-title">💡 閱讀核心指引</div>
+          <div class="student-tip-desc">
+            本簡報專為不熟悉複雜金融計量的大學生設計，不談艱澀程式碼，而是帶你理解：AI 在真實股票市場中究竟「能做到什麼」，以及「為什麼常在實盤中失效」。
+          </div>
+        </div>
+      </div>
+
+      <div class="slide" id="slide-2">
+        <div class="eyebrow">Starting Point: Efficient Markets</div>
+        <h2 class="title">起點：為什麼「預測股價」這麼難？</h2>
+        <p class="subtitle">
+          Fama (1970 JF) 提出「效率市場」：如果股價隨時都已完全反映所有可得資訊，任何人都很難靠分析持續打敗市場。所有 AI 選股研究，都是在挑戰這個基準。
+        </p>
+
+        <div class="grid-2">
+          <div class="card">
+            <h3 class="c-navy">🧭 效率市場的三個檢驗層級</h3>
+            <table class="mini-table">
+              <thead><tr><th>層級</th><th>考慮的資訊</th><th>當時證據</th></tr></thead>
+              <tbody>
+                <tr><td><strong>弱式</strong></td><td>過去的股價</td><td>歷史漲跌幾乎無法預測未來</td></tr>
+                <tr><td><strong>半強式</strong></td><td>所有公開消息</td><td>股價對公開消息反應很快</td></tr>
+                <tr><td><strong>強式</strong></td><td>連內線消息都算</td><td>只有交易所專業會員、公司內部人例外</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="card">
+            <h3 class="c-rose">📊 三個經典證據</h3>
+            <ul>
+              <li><strong>看線操作</strong>：小幅度的「漲就買、跌就賣」規則，帳面上略勝，但每趟約 <span class="stat-badge amber">0.1%</span> 的交易費用就足以把優勢抹平。</li>
+              <li><strong>盈餘公告</strong>：<span class="stat-badge cyan">261</span> 家公司的年度盈餘中，公告當月之前還沒被市場預期到的資訊只有約 <span class="stat-badge cyan">10%～15%</span>。</li>
+              <li><strong>專業基金</strong>：<span class="stat-badge cyan">115</span> 檔共同基金中，有 <span class="stat-badge rose">89</span> 檔扣費後落後市場，10 年報酬平均少 <span class="stat-badge rose">14.6%</span>。</li>
+            </ul>
+            <div class="student-tip">
+              <div class="student-tip-title">🎓 大學生白話解讀</div>
+              <div class="student-tip-desc">如果路上有一張千元鈔票，早就被別人撿走了。市場上「明顯能賺錢的規律」也一樣，很快就會被搶光。</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="source" data-source="wiki/literature/1970_JF_Fama_Efficient_Capital_Markets.md">
+          <strong>資料出處：</strong>wiki/literature/1970_JF_Fama_Efficient_Capital_Markets.md
+        </div>
+      </div>
+
+      <!-- SLIDE: Glossary -->
+      <div class="slide" id="slide-3">
+        <div class="eyebrow">Key Terms</div>
+        <h2 class="title">先認識幾個名詞：後面每一頁都會用到</h2>
+        <p class="subtitle">看懂這些詞，就能讀懂接下來的實證數字。</p>
+        <div class="grid-2">
+          <div class="card">
+            <table class="mini-table">
+              <tbody>
+                <tr><td><strong>夏普值</strong></td><td>每承擔一單位風險換到多少報酬（超額報酬 ÷ 標準差）</td></tr>
+                <tr><td><strong>超額報酬／Alpha</strong></td><td>扣掉大盤或常見風險因子能解釋的部分後，額外多賺的報酬</td></tr>
+                <tr><td><strong>放空</strong></td><td>先借股票賣出，跌了再買回歸還，賺下跌的價差</td></tr>
+                <tr><td><strong>多空組合</strong></td><td>買進看好的、放空看壞的，賺兩者的相對差距</td></tr>
+                <tr><td><strong>bps（基點）</strong></td><td>1 bp = 0.01%，100 bps = 1%</td></tr>
+                <tr><td><strong>最大回撤</strong></td><td>從最高點跌到之後最低點的最大跌幅</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="card">
+            <table class="mini-table">
+              <tbody>
+                <tr><td><strong>換手率</strong></td><td>買賣金額占投資組合的比例，越高代表越常換股</td></tr>
+                <tr><td><strong>樣外測試</strong></td><td>用模型沒看過的新資料檢驗，不拿背過答案的題目考自己</td></tr>
+                <tr><td><strong>過擬合</strong></td><td>把歷史資料裡的雜訊也當成規律記下來</td></tr>
+                <tr><td><strong>訊噪比</strong></td><td>有用訊號相對於隨機雜訊的強弱；股價資料訊噪比很低</td></tr>
+                <tr><td><strong>市值加權／等權</strong></td><td>依公司大小分配資金／每檔投入相同金額</td></tr>
+                <tr><td><strong>積極單／被動單</strong></td><td>以能立即成交的價格下單／掛在市場上等別人成交</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="student-tip">
+          <div class="student-tip-title">🎓 小提醒</div>
+          <div class="student-tip-desc">夏普值是後面最常出現的數字：同樣的報酬，波動越小的策略夏普值越高，代表賺得越「穩」。</div>
+        </div>
+        <div class="source" data-source="wiki/methodologies/名詞小卡.md">
+          <strong>資料出處：</strong>wiki/methodologies/名詞小卡.md
+        </div>
+      </div>
+
+<!-- SLIDE: What is AI in Finance? -->
+      <div class="slide" id="slide-4">
+        <div class="eyebrow">Fundamental Concepts</div>
+        <h2 class="title">AI 如何分析股票？從「數字」到「文字」</h2>
+        <p class="subtitle">
+          股票分析本質上是處理「資訊」。在現代金融學中，AI 的應用主要分為兩大陣營：
+        </p>
+
+        <div class="grid-2">
+          <div class="card">
+            <h3 style="color: var(--accent-cyan);">數值型特徵 (Tabular Data)</h3>
+            <ul>
+              <li><strong>資料形態</strong>：股價與財務數字，例如本益比、過去 12 個月漲跌幅、換手率、成交金額。</li>
+              <li><strong>AI 的任務</strong>：尋找因子與預期報酬之間的關聯，捕捉多特徵同時互動的非線性關係。</li>
+              <li><strong>代表模型</strong>：隨機森林、梯度提升樹、人工神經網絡。</li>
+            </ul>
+            <div class="student-tip">
+              <div class="student-tip-title">🎓 大學生白話解讀</div>
+              <div class="student-tip-desc">就像看體檢報告，AI 同時綜合身高、體重、血壓多項數字，評估未來的健康趨勢。</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3 style="color: var(--accent-emerald);">非結構化文字 (Textual News)</h3>
+            <ul>
+              <li><strong>資料形態</strong>：財經新聞頭條（多數是企業發布的新聞稿），內容包括財報、合作、內部人股權交易、股利政策等事件。</li>
+              <li><strong>AI 的任務</strong>：閱讀文字並理解商業事件的因果關係，判斷對股價究竟是利多還是利空。</li>
+              <li><strong>代表模型</strong>：大語言模型。</li>
+            </ul>
+            <div class="student-tip">
+              <div class="student-tip-title">🎓 大學生白話解讀</div>
+              <div class="student-tip-desc">就像請一位閱讀速度極快的實習生，在一秒鐘內看完新聞並告訴你該買還是該賣。</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="source" data-source="wiki/methodologies/機器學習資產定價.md;wiki/literature/2020_RFS_Gu_Kelly_Xiu_Empirical_Asset_Pricing_via_Machine_Learning.md;wiki/literature/2026_JFE_Lopez-Lira_Tang_Can_ChatGPT_Forecast_Stock_Price_Movements.md">
+          <strong>資料出處：</strong>wiki/methodologies/機器學習資產定價.md；wiki/literature/2020_RFS_Gu_Kelly_Xiu_Empirical_Asset_Pricing_via_Machine_Learning.md；wiki/literature/2026_JFE_Lopez-Lira_Tang_Can_ChatGPT_Forecast_Stock_Price_Movements.md
+        </div>
+      </div>
+<!-- SLIDE: Numerical ML (GKX 2020) -->
+      <div class="slide" id="slide-5">
+        <div class="eyebrow">Application 1: Numerical Machine Learning</div>
+        <h2 class="title">從 920 個特徵中淘金：數值型機器學習</h2>
+        <p class="subtitle">
+          Gu, Kelly, and Xiu (2020 RFS) 經典實證：用美股 60 年（1957–2016）近 30,000 檔個股驗證 AI 的選股能力。
+        </p>
+
+        <div class="grid-2">
+          <div class="card">
+            <h3 style="color: var(--accent-cyan);">📈 實證關鍵數據對比</h3>
+            <ul>
+              <li><strong>傳統線性回歸 (OLS) 徹底崩潰</strong>：給它 920 個特徵時，月度樣外預測 <i>R</i>² 暴跌至 <span class="stat-badge rose">-3.46%</span>（嚴重過擬合，甚至不如直接猜 0）。</li>
+              <li><strong>3 層神經網絡 (NN3) 最佳</strong>：月度樣外 <i>R</i>² 達到 <span class="stat-badge emerald">0.40%</span>（大型股達 <span class="stat-badge emerald">0.70%</span>）。</li>
+              <li><strong>投資效益</strong>：NN4 構建的多空對沖組合，市值加權年化夏普值達 <span class="stat-badge emerald">1.35</span>，等權夏普值達 <span class="stat-badge emerald">2.45</span>，等權最大回撤僅 <span class="stat-badge cyan">14.72%</span>。</li>
+            </ul>
+          </div>
+
+          <div class="card">
+            <h3 style="color: var(--accent-indigo);">🔍 AI 發現最重要的四大類信號</h3>
+            <ul>
+              <li><strong>價格趨勢</strong>：短期反轉 (<code>mom1m</code>)、12 個月動能 (<code>mom12m</code>)，影響力最大。</li>
+              <li><strong>流動性</strong>：市值、換手率 (<code>turn</code>)、成交金額 (<code>dolvol</code>)。</li>
+              <li><strong>波動度與風險</strong>：例如特質波動度 (<code>idiovol</code>)。</li>
+              <li><strong>基本面與估值</strong>：例如盈餘價格比 (<code>ep</code>)。</li>
+            </ul>
+            <div class="student-tip">
+              <div class="student-tip-title">🎓 什麼是「樣外 <i>R</i>² (Out-of-Sample)」？</div>
+              <div class="student-tip-desc">指拿未來的全新資料做盲測考驗模型，而不是拿已背過答案的歷史題目自欺欺人。</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="source" data-source="wiki/literature/2020_RFS_Gu_Kelly_Xiu_Empirical_Asset_Pricing_via_Machine_Learning.md">
+          <strong>資料出處：</strong>wiki/literature/2020_RFS_Gu_Kelly_Xiu_Empirical_Asset_Pricing_via_Machine_Learning.md
+        </div>
+      </div>
+
+      <div class="slide" id="slide-6">
+        <div class="eyebrow">Application 2: Deep Learning on Price Sequences</div>
+        <h2 class="title">深度學習只看股價走勢，能贏過市場嗎？</h2>
+        <p class="subtitle">
+          Fischer &amp; Krauss (2018 EJOR)：只給 LSTM 神經網路每檔股票過去 <span class="stat-badge cyan">240</span> 天的日報酬，預測 S&amp;P 500 成分股明天會贏還是輸給其他股票（1992–2015）。
+        </p>
+
+        <div class="grid-2">
+          <div class="card">
+            <h3 class="c-navy">📈 多空組合年化夏普值（每天買 10 檔、空 10 檔）</h3>
+            <table class="mini-table">
+              <thead><tr><th>模型</th><th>扣成本前</th><th>扣成本後</th></tr></thead>
+              <tbody>
+                <tr><td><strong>LSTM（記憶型神經網路）</strong></td><td><span class="stat-badge emerald">5.83</span></td><td><span class="stat-badge emerald">2.34</span></td></tr>
+                <tr><td>隨機森林</td><td>5.00</td><td>1.87</td></tr>
+                <tr><td>一般深度神經網路</td><td>2.43</td><td>0.52</td></tr>
+                <tr><td>邏輯迴歸</td><td>1.70</td><td>0.10</td></tr>
+                <tr><td>大盤（對照）</td><td>—</td><td>0.35</td></tr>
+              </tbody>
+            </table>
+            <p class="note">LSTM 選股的正確率為 <span class="stat-badge cyan">54.3%</span>，只比丟硬幣多一點，卻足以累積可觀報酬。</p>
+          </div>
+
+          <div class="card">
+            <h3 class="c-rose">🔍 打開黑盒子：LSTM 學到了什麼？</h3>
+            <ul>
+              <li><strong>沒人教它因子</strong>，它卻自己學到：買進最近 10 天大跌的股票、放空最近大漲的股票（<strong>短期反轉</strong>），而且偏好<strong>高波動</strong>的股票。</li>
+              <li>把這個型態寫成簡單規則（買最近 5 天跌最多、空漲最多），扣成本前日均報酬 <span class="stat-badge cyan">0.23%</span>，約是 LSTM（<span class="stat-badge emerald">0.46%</span>）的一半。</li>
+              <li><strong>但好景不常</strong>：2010 年後優勢被套利掉，扣成本後獲利在零附近波動（詳見陷阱五）。</li>
+            </ul>
+            <div class="student-tip">
+              <div class="student-tip-title">🎓 大學生白話解讀</div>
+              <div class="student-tip-desc">AI 很會「發現規律」，但它發現的往往是人類早已知道的現象（例如短期漲多會回檔），只是執行得更快、更有紀律。</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="source" data-source="wiki/literature/2018_EJOR_Fischer_Krauss_Deep_Learning_with_LSTM_Networks_for_Financial_Market_Predictions.md">
+          <strong>資料出處：</strong>wiki/literature/2018_EJOR_Fischer_Krauss_Deep_Learning_with_LSTM_Networks_for_Financial_Market_Predictions.md
+        </div>
+      </div>
+
+<!-- SLIDE: LLMs for News (Lopez-Lira & Tang 2026) -->
+      <div class="slide" id="slide-7">
+        <div class="eyebrow">Application 3: Generative AI & LLMs</div>
+        <h2 class="title">ChatGPT 能看懂新聞嗎？大語言模型的即時推理</h2>
+        <p class="subtitle">
+          Lopez-Lira & Tang (2026 JFE) 實證：完全不給金融訓練標籤，GPT-4 能否正確解讀 159,137 則新聞頭條（涵蓋 4,123 檔股票）？
+        </p>
+
+        <div class="grid-2">
+          <div class="card">
+            <h3 style="color: var(--accent-emerald);">🎯 驚人的即時反應勝率</h3>
+            <ul>
+              <li><strong>隔夜新聞開盤方向勝率</strong>：高達 <span class="stat-badge emerald">93.3%</span>（盤中新聞勝率為 <span class="stat-badge emerald">88.78%</span>）。</li>
+              <li><strong>即時開盤跳空差距</strong>：GPT-4 評為好消息的股票，隔日開盤平均比壞消息股票高出 <span class="stat-badge cyan">3.06%</span>（這段開盤跳空<strong>無法實際交易賺到</strong>）；盤中新聞發布後 <span class="stat-badge cyan">15</span> 分鐘內的差距為 <span class="stat-badge cyan">4.44%</span>。</li>
+              <li><strong>零樣本推理 (Zero-Shot)</strong>：模型不需要看歷史股價，只憑自然語言理解就能準確體會市場心理。</li>
+            </ul>
+          </div>
+
+          <div class="card">
+            <h3 style="color: var(--accent-indigo);">💡 為什麼傳統字典法輸給了大模型？</h3>
+            <ul>
+              <li><strong>傳統計詞字典 (Loughran-McDonald)</strong>：靠數正面、負面字詞打分數，漂移策略夏普值只有 <span class="stat-badge rose">-0.19</span>。</li>
+              <li><strong>GPT-4</strong>：同一指標達 <span class="stat-badge emerald">2.97</span>。</li>
+              <li><strong>差在哪裡</strong>：大模型能做商業因果推理，例如判斷「收購案終止」對被收購的公司是利空（失去收購溢價），而不是只看字面上有沒有利多詞彙。</li>
+            </ul>
+            <div class="student-tip">
+              <div class="student-tip-title">🎓 大模型的核心優勢</div>
+              <div class="student-tip-desc">能理解「誰是主詞、誰是受詞」，懂得同一件事對不同公司可能產生完全相反的利弊影響。</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="source" data-source="wiki/literature/2026_JFE_Lopez-Lira_Tang_Can_ChatGPT_Forecast_Stock_Price_Movements.md;wiki/syntheses/AI在股市分析上的應用與問題專題綜述.md">
+          <strong>資料出處：</strong>wiki/literature/2026_JFE_Lopez-Lira_Tang_Can_ChatGPT_Forecast_Stock_Price_Movements.md；wiki/syntheses/AI在股市分析上的應用與問題專題綜述.md
+        </div>
+      </div>
+<!-- SLIDE: Underreaction and Drift -->
+      <div class="slide" id="slide-8">
+        <div class="eyebrow">Application 4: Behavioral Biases & Inefficiencies</div>
+        <h2 class="title">捕捉市場反應不足：新聞發布後的「價格漂移」</h2>
+        <p class="subtitle">
+          如果市場立刻完全反映新聞，事後就沒有賺頭。但真實市場中，人類投資人的注意力有限，會產生延遲反映。
+        </p>
+
+        <div class="grid-2">
+          <div class="card">
+            <h3 style="color: var(--accent-cyan);">🌊 什麼是價格漂移 (Price Drift)？</h3>
+            <ul>
+              <li>新聞發布開盤後才進場買進好消息、放空壞消息，持有至當天收盤：</li>
+              <li><strong>隔日漂移日均報酬</strong>：達到 <span class="stat-badge emerald">34 bps (0.34%)</span>。</li>
+              <li><strong>年化夏普值</strong>：隔夜新聞策略夏普達 <span class="stat-badge emerald">2.97</span>（盤中新聞漂移夏普值為 <span class="stat-badge emerald">2.63</span>）。</li>
+              <li><strong>做多 vs 放空不對稱</strong>：做多腳夏普為 <span class="stat-badge cyan">0.78</span>，放空腳夏普高達 <span class="stat-badge emerald">2.01</span>！</li>
+              <li><strong>價格吸收時間</strong>：資訊大約在 <span class="stat-badge cyan">1~2 個交易日</span> 內被市場逐步完全吸收消化。</li>
+            </ul>
+          </div>
+
+          <div class="card">
+            <h3 style="color: var(--accent-rose);">⚖️ 哪些新聞容易引發反應不足？</h3>
+            <ul>
+              <li><strong>瞬間定價無漂移</strong>：財報公布與新藥臨床試驗，開盤即時對齊度極高（達 <span class="stat-badge cyan">308~337 bps</span>），後續漂移接近 0。</li>
+              <li><strong>顯著反應不足（強烈漂移）</strong>：
+                <br>• 內部人股權交易：事後漂移達 <span class="stat-badge emerald">+26.3 bps</span>
+                <br>• 股利政策變更：事後漂移達 <span class="stat-badge emerald">+22.3 bps</span>
+                <br>• 醫療會議研討發表：事後漂移達 <span class="stat-badge emerald">+34.2 bps</span>
+              </li>
+            </ul>
+            <div class="student-tip">
+              <div class="student-tip-title">🎓 大學生白話解讀</div>
+              <div class="student-tip-desc">越需要複雜背景知識推理的新聞，散戶越難一眼看懂，股價就越容易在隨後幾天慢慢反應。</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="source" data-source="wiki/literature/2026_JFE_Lopez-Lira_Tang_Can_ChatGPT_Forecast_Stock_Price_Movements.md">
+          <strong>資料出處：</strong>wiki/literature/2026_JFE_Lopez-Lira_Tang_Can_ChatGPT_Forecast_Stock_Price_Movements.md
+        </div>
+      </div>
+<!-- SLIDE: Problem 1 - Low SNR & Overfitting -->
+      <div class="slide" id="slide-9">
+        <div class="eyebrow">Challenge 1: Statistical Pitfalls</div>
+        <h2 class="title">陷阱一：金融「極低訊噪比」與過擬合</h2>
+        <p class="subtitle">
+          大學生常以為神經網絡「層數越多越厲害」，但在雜訊很多的金融資料中，更深不一定更好。
+        </p>
+
+        <div class="grid-2">
+          <div class="card accent-rose">
+            <h3 style="color: var(--accent-rose);">📉 淺層勝過深層 (Shallow > Deep)</h3>
+            <ul>
+              <li><strong>神經網絡層數極限</strong>：實證發現，在數值型預測中，神經網絡在 <span class="stat-badge cyan">3 層隱藏層 (NN3)</span> 達到巔峰，再加深已是邊際效益遞減。</li>
+              <li><strong>決策樹深度限制</strong>：提升樹與隨機森林的最佳平均深度通常小於 <span class="stat-badge cyan">6 片葉子</span>。</li>
+              <li><strong>根本原因</strong>：金融市場充滿噪訊，過於複雜深層的模型，只會把歷史巧合與隨機波動當成規律死記下來（過擬合 Overfitting）。</li>
+            </ul>
+          </div>
+
+          <div class="card accent-amber">
+            <h3 style="color: var(--accent-amber);">🛡️ 解決方案：損失函數穩健化</h3>
+            <ul>
+              <li><strong>傳統均方誤差 (MSE) 缺陷</strong>：遇到極端暴跌或暴漲的離群值時，二次方懲罰容易把模型參數拉偏。</li>
+              <li><strong>採用 Huber 損失函數</strong>：在小誤差時維持二次平方平滑，在大誤差時轉為絕對值線性懲罰，保護模型不被少數黑天鵝極端值誤導。</li>
+            </ul>
+            <div class="student-tip">
+              <div class="student-tip-title">🎓 大學生白話解讀</div>
+              <div class="student-tip-desc">就像考前猜題，背了太多只有那年出過一次的怪題目，到真正考試時反而考得一塌糊塗。</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="source" data-source="wiki/methodologies/機器學習資產定價.md">
+          <strong>資料出處：</strong>wiki/methodologies/機器學習資產定價.md
+        </div>
+      </div>
+<!-- SLIDE: Problem 2 - Model Scale Threshold -->
+      <div class="slide" id="slide-10">
+        <div class="eyebrow">Challenge 2: Architectural Thresholds</div>
+        <h2 class="title">陷阱二：模型規模的「臨界門檻效應」</h2>
+        <p class="subtitle">
+          不是只要掛上「AI」就能賺錢：實證證實，小參數量模型在金融文字推理上幾乎全軍覆沒。
+        </p>
+
+        <div class="grid-2">
+          <div class="card">
+            <h3 style="color: var(--accent-amber);">📊 跨模型漂移年化夏普值 (Sharpe)</h3>
+            <ul>
+              <li><strong>傳統小模型 (GPT-1 / GPT-2 / BERT)</strong>：夏普值 <span class="stat-badge rose">全部為負值 (-0.11 ~ -0.64)</span>，完全缺乏金融推理能力。</li>
+              <li><strong>金融專用小模型 (FinBERT 110M)</strong>：夏普值為 <span class="stat-badge rose">-0.33</span>（<span class="stat-badge amber">75%</span> 標註為中性，漂移預測失敗）。</li>
+              <li><strong>輕量化推論模型 (DistilBART-MNLI)</strong>：夏普值 <span class="stat-badge cyan">1.26</span>，具備一定判別力。</li>
+              <li><strong>開源大模型 (Llama2-70B)</strong>：夏普值達到 <span class="stat-badge cyan">0.97</span>（遠優於小參數版）。</li>
+              <li><strong>商用進階模型 (GPT-3.5)</strong>：夏普值達到 <span class="stat-badge cyan">1.66</span>。</li>
+              <li><strong>頂級旗艦模型 (GPT-4)</strong>：夏普值躍升至 <span class="stat-badge emerald">2.97</span>（所有模型中最高）。</li>
+            </ul>
+          </div>
+
+          <div class="card">
+            <h3 style="color: var(--accent-indigo);">🧩 為什麼小模型會失敗？</h3>
+            <ul>
+              <li><strong>存在臨界門檻</strong>：小模型缺乏常識推理能力，無法在高度噪訊的文字中提煉出有效信號。</li>
+              <li><strong>金融推理是湧現能力 (Emergent Ability)</strong>：大致上要規模夠大的模型（如 GPT-3.5、GPT-4）才展現有效的金融推理；不過輕量化的 DistilBART-MNLI 也有不錯表現，門檻不是一刀切。</li>
+            </ul>
+            <div class="student-tip">
+              <div class="student-tip-title">🎓 大學生白話解讀</div>
+              <div class="student-tip-desc">背字典的小學生（小模型）只認得生字，但真正能看懂商業收購策略的，必須是見多識廣的成年專家（超大模型）。</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="source" data-source="wiki/literature/2026_JFE_Lopez-Lira_Tang_Can_ChatGPT_Forecast_Stock_Price_Movements.md">
+          <strong>資料出處：</strong>wiki/literature/2026_JFE_Lopez-Lira_Tang_Can_ChatGPT_Forecast_Stock_Price_Movements.md
+        </div>
+      </div>
+<!-- SLIDE: Problem 3 - Execution & Costs (Lopez-Lira & Tang 2026) -->
+      <div class="slide" id="slide-11">
+        <div class="eyebrow">Challenge 3: Implementation & Trading Costs</div>
+        <h2 class="title">陷阱三：實盤交易成本與高換手率損耗</h2>
+        <p class="subtitle">
+          紙上回測很美好，實盤執行很殘酷：如果策略天天頻繁換股，交易成本會快速侵蝕超額報酬。
+        </p>
+
+        <div class="grid-2">
+          <div class="card accent-rose">
+            <h3 style="color: var(--accent-rose);">💸 換手率與成本侵蝕實證</h3>
+            <ul>
+              <li><strong>換手率過高</strong>：GPT-4 每日新聞策略在 100% 每日換手下，日周轉率高達 <span class="stat-badge rose">190%</span>。</li>
+              <li><strong>摩擦耐受極限</strong>：來回交易成本達 <span class="stat-badge amber">10 bps</span> 時，策略累積回報仍超過 <span class="stat-badge amber">100%</span>，年化夏普值約 <span class="stat-badge amber">1.29</span>；來回達 <span class="stat-badge rose">20 bps</span> 時，超額報酬被交易成本吞噬殆盡。</li>
+              <li><strong>解法 (部分再平衡)</strong>：採 <span class="stat-badge emerald">25% 部分再平衡</span>，換手率降至每日 <span class="stat-badge emerald">46%</span>，在 10 bps 成本下夏普值維持在 <span class="stat-badge emerald">1.34</span>。</li>
+            </ul>
+          </div>
+
+          <div class="card accent-cyan">
+            <h3 style="color: var(--accent-cyan);">⚖️ 放空成本與執行障礙</h3>
+            <ul>
+              <li><strong>做多 vs 放空不對稱</strong>：GPT-4 策略中，負面新聞放空腳的獲利是主要貢獻者。</li>
+              <li><strong>實務執行限制</strong>：放空存在融券限制、借券成本與制度約束，使知情套利者修正「被高估股票」的速度慢得多——這正是負面新聞漂移較明顯的原因。</li>
+            </ul>
+            <div class="student-tip">
+              <div class="student-tip-title">🎓 大學生白話解讀</div>
+              <div class="student-tip-desc">頻繁換股不是免費的，手續費就像賭場的抽水，交易越頻繁，賭客被抽走的本金就越多。</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="source" data-source="wiki/literature/2026_JFE_Lopez-Lira_Tang_Can_ChatGPT_Forecast_Stock_Price_Movements.md">
+          <strong>資料出處：</strong>wiki/literature/2026_JFE_Lopez-Lira_Tang_Can_ChatGPT_Forecast_Stock_Price_Movements.md
+        </div>
+      </div>
+<!-- SLIDE: Problem 4 - Order Aggressiveness (Barber et al. 2009) -->
+      <div class="slide" id="slide-12">
+        <div class="eyebrow">Challenge 4: Market Microstructure</div>
+        <h2 class="title">陷阱四：訂單簿微觀陷阱——主動追價的代價</h2>
+        <p class="subtitle">
+          Barber, Lee, Liu, and Odean (2009 RFS) 台股全市場實證：下單的「積極度」是決定賺賠的核心分水嶺。
+        </p>
+
+        <div class="grid-2">
+          <div class="card accent-rose">
+            <h3 style="color: var(--accent-rose);">📉 散戶虧損的殘酷真相</h3>
+            <ul>
+              <li><strong>總體經濟規模</strong>：台股散戶每年整體承受年化 <span class="stat-badge rose">3.8%</span> 績效折損（總計 5 年虧損 <span class="stat-badge rose">9,350 億</span> 台幣，年均 <span class="stat-badge rose">1,870 億</span>，相當於台灣 GDP 的 <span class="stat-badge rose">2.2%</span> 或個人所得的 <span class="stat-badge rose">2.8%</span>）。</li>
+              <li><strong>虧損根源</strong>：幾乎全部來自<strong>「主動積極單 (Aggressive Orders)」</strong>！散戶在缺乏資訊時，以能立即成交的價格主動吃單，承擔衝擊成本。</li>
+              <li><strong>賭博心理</strong>：2002 年台灣發行公益彩券後，台股月換手率顯著下降<span class="stat-badge amber">約四分之一</span>，證實過度交易具投機尋求刺激性質。</li>
+            </ul>
+          </div>
+
+          <div class="card accent-emerald">
+            <h3 style="color: var(--accent-emerald);">🏦 法人機構如何獲利？</h3>
+            <ul>
+              <li><strong>機構淨超額收益</strong>：全體法人年化淨賺 <span class="stat-badge emerald">1.5%</span>，外資拿走法人全體總毛利的 <span class="stat-badge emerald">46.2%</span>。</li>
+              <li><strong>積極單與被動單都賺</strong>：法人的被動掛單在短期與長期都獲利；積極單的獲利則隨時間持續放大，在量到的最長期間（<span class="stat-badge cyan">140</span> 天，約半年）仍在增加。</li>
+            </ul>
+            <div class="student-tip">
+              <div class="student-tip-title">🎓 延伸思考（推論，非論文結論）</div>
+              <div class="student-tip-desc">AI 交易若只會積極追價，就會重蹈散戶覆轍；但只會掛單也不夠——散戶的被動單長期會被知情交易者「逆向挑選」吃掉利潤。</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="source" data-source="wiki/literature/2009_RFS_Barber_Lee_Liu_Odean_Just_How_Much_Do_Individual_Investors_Lose_by_Trading.md">
+          <strong>資料出處：</strong>wiki/literature/2009_RFS_Barber_Lee_Liu_Odean_Just_How_Much_Do_Individual_Investors_Lose_by_Trading.md
+        </div>
+      </div>
+<!-- SLIDE: Problem 5 - Alpha Decay -->
+      <div class="slide" id="slide-13">
+        <div class="eyebrow">Challenge 5: Market Dynamics & Equilibrium</div>
+        <h2 class="title">陷阱五：Alpha 的自我消亡與市場效率提升</h2>
+        <p class="subtitle">
+          AI 投資的終極悖論：AI 的預測成功，孕育了自身交易信號的消亡。
+        </p>
+
+        <div class="grid-2">
+          <div class="card">
+            <h3 style="color: var(--accent-rose);">📉 實證記錄：夏普值的逐年衰減 (2021–2024)</h3>
+            <ul>
+              <li><strong>2021 年 Q4 (初期)</strong>：年化夏普值高達 <span class="stat-badge emerald">6.54</span></li>
+              <li><strong>2022 年</strong>：年化夏普值降至 <span class="stat-badge cyan">3.68</span></li>
+              <li><strong>2023 年</strong>：年化夏普值降至 <span class="stat-badge amber">2.33</span></li>
+              <li><strong>2024 年 (1~5月)</strong>：年化夏普值降至 <span class="stat-badge rose">1.22</span></li>
+            </ul>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 8px;">
+              Lopez-Lira & Tang (2026 JFE) 實證記錄了大語言模型策略夏普值的持續下滑軌跡。
+            </p>
+          </div>
+
+          <div class="card">
+            <h3 style="color: var(--accent-cyan);">⚙️ 為什麼超額收益會消失？</h3>
+            <ul>
+              <li><strong>降低資訊門檻</strong>：LLM 的低門檻對話介面，降低了一般投資人處理複雜文字的成本。</li>
+              <li><strong>機構全面導入</strong>：避險基金與機構也導入生成式 AI，原本反應不足的資訊被越來越快速地定價，夏普值因此逐年下滑。</li>
+              <li><strong>市場更有效率</strong>：AI 加速了價格發現，資訊傳播的摩擦變小，市場變得更加接近有效市場。</li>
+            </ul>
+            <div class="student-tip">
+              <div class="student-tip-title">🎓 大學生白話解讀</div>
+              <div class="student-tip-desc">就像發現一條沒人知道的捷徑，當導航軟體把這條捷徑公開給所有人後，捷徑立刻就塞車了。</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="precedent">
+          <strong>📜 深度學習年代也發生過：</strong>Fischer &amp; Krauss (2018) 的 LSTM 策略扣成本後，每天平均投入 1 美元，1993–2000 年累積超過 <span class="stat-badge emerald">11</span> 美元，2001–2009 年只剩約 <span class="stat-badge amber">4</span> 美元，2010 年後大致保本——作者認為是同類策略在業界擴散所致。
+        </div>
+
+        <div class="source" data-source="wiki/literature/2026_JFE_Lopez-Lira_Tang_Can_ChatGPT_Forecast_Stock_Price_Movements.md;wiki/literature/2018_EJOR_Fischer_Krauss_Deep_Learning_with_LSTM_Networks_for_Financial_Market_Predictions.md">
+          <strong>資料出處：</strong>wiki/literature/2026_JFE_Lopez-Lira_Tang_Can_ChatGPT_Forecast_Stock_Price_Movements.md；wiki/literature/2018_EJOR_Fischer_Krauss_Deep_Learning_with_LSTM_Networks_for_Financial_Market_Predictions.md
+        </div>
+      </div>
+<!-- SLIDE: Conclusion & Outlook -->
+      <div class="slide" id="slide-14">
+        <div class="eyebrow">Conclusion & Future Outlook</div>
+        <h2 class="title">總結與通識啟示：大學生該如何看待金融 AI？</h2>
+        <p class="subtitle">
+          AI 不是穩賺不賠的水晶球，而是改變市場生態的資訊處理加速器。
+        </p>
+
+        <div class="grid-3" style="margin-bottom: 16px;">
+          <div class="card" style="border-top: 3px solid var(--accent-cyan);">
+            <h3 style="color: var(--accent-cyan);">數值與文本各有所長</h3>
+            <p style="font-size: 0.8rem;">
+              兩條路線各有所長：<strong>數值型機器學習 (GKX 2020)</strong> 擅長整合大量表格特徵，<strong>大語言模型 (JFE 2026)</strong> 擅長解讀新聞事件。
+            </p>
+          </div>
+
+          <div class="card" style="border-top: 3px solid var(--accent-amber);">
+            <h3 style="color: var(--accent-amber);">敬畏摩擦與微觀結構</h3>
+            <p style="font-size: 0.8rem;">
+              回測不等於實盤：牢記台股散戶的教訓 (Barber et al. 2009)，嚴格控制換手率與交易成本，避免無謂的積極追價。
+            </p>
+          </div>
+
+          <div class="card" style="border-top: 3px solid var(--accent-emerald);">
+            <h3 style="color: var(--accent-emerald);">回到效率市場</h3>
+            <p style="font-size: 0.8rem;">
+              回到 Fama (1970) 的效率市場：從 LSTM 到 GPT-4，AI 找到的超額報酬很可能隨著方法普及而縮小。AI 讓市場更有效率，而不是讓人穩賺。
+            </p>
+          </div>
+        </div>
+
+        <div class="student-tip">
+          <div class="student-tip-title">🎓 給初學者的結語</div>
+          <div class="student-tip-desc">
+            學習金融 AI 的真正目的，不是去尋找一個「自動印鈔機代碼」，而是學會用計量與科學的思維，看懂資訊是如何在市場中流動、被定價，並最終形成股價的。
+          </div>
+        </div>
+
+        <div class="source" data-source="wiki/syntheses/AI在股市分析上的應用與問題專題綜述.md">
+          <strong>資料出處：</strong>wiki/syntheses/AI在股市分析上的應用與問題專題綜述.md
+        </div>
+      </div>
+
+    
+    </div>
+
+    <footer>
+      <div class="topic-title">AI 在股市分析上的應用與問題 ｜ 通識簡報</div>
+      <div style="display: flex; gap: 12px; align-items: center;">
+        <button class="btn" onclick="prevSlide()">◀ 上一頁</button>
+        <div id="counter">01 / 14</div>
+        <button class="btn" onclick="nextSlide()">下一頁 ▶</button>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    var currentSlide = 1;
+    var totalSlides = 14;
+    var slides = document.querySelectorAll('.slide');
+    var progressBar = document.getElementById('progress-bar');
+    var counter = document.getElementById('counter');
+    var stage = document.getElementById('stage');
+
+    function fitStage() {
+      var s = Math.min(window.innerWidth / 1280, window.innerHeight / 720) * 0.97;
+      stage.style.setProperty('--scale', s);
+    }
+    function pad(n) { return n < 10 ? '0' + n : '' + n; }
+    function updateSlide() {
+      for (var i = 0; i < slides.length; i++) {
+        var n = i + 1;
+        slides[i].classList.remove('active', 'prev');
+        if (n === currentSlide) slides[i].classList.add('active');
+        else if (n < currentSlide) slides[i].classList.add('prev');
+      }
+      progressBar.style.width = (currentSlide / totalSlides * 100) + '%';
+      counter.innerText = pad(currentSlide) + ' / ' + pad(totalSlides);
+    }
+    function nextSlide() { if (currentSlide < totalSlides) { currentSlide++; updateSlide(); } }
+    function prevSlide() { if (currentSlide > 1) { currentSlide--; updateSlide(); } }
+    function toggleFullScreen() {
+      if (!document.fullscreenElement) { document.documentElement.requestFullscreen().catch(function() {}); }
+      else if (document.exitFullscreen) { document.exitFullscreen(); }
+    }
+    window.addEventListener('keydown', function(e) {
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { e.preventDefault(); nextSlide(); }
+      else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prevSlide(); }
+      else if (e.key === 'Home') { e.preventDefault(); currentSlide = 1; updateSlide(); }
+      else if (e.key === 'End') { e.preventDefault(); currentSlide = totalSlides; updateSlide(); }
+      else if (e.key === 'f' || e.key === 'F') { toggleFullScreen(); }
+    });
+    var touchX = 0;
+    document.addEventListener('touchstart', function(e) { touchX = e.changedTouches[0].screenX; });
+    document.addEventListener('touchend', function(e) {
+      var dx = e.changedTouches[0].screenX - touchX;
+      if (dx < -50) nextSlide(); else if (dx > 50) prevSlide();
+    });
+    window.addEventListener('resize', fitStage);
+    fitStage();
+    updateSlide();
+  </script>
+</body>
+</html>
