@@ -1,0 +1,4 @@
+# 原始論文 PDF 涉及版權，不公開
+raw/*.pdf
+# Antigravity 的瀏覽器設定檔（可能含登入資料）
+output/chrome-profile/

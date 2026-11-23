@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 在股市分析上的應用與問題：從計量機器學習到大語言模型</title>
+  <style>
+    :root {
+      --bg-gradient: radial-gradient(circle at 50% 20%, #111827 0%, #030712 100%);
+      --card-bg: rgba(17, 24, 39, 0.75);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --accent-cyan: #06b6d4;
+      --accent-blue: #3b82f6;
+      --accent-indigo: #6366f1;
+      --accent-emerald: #10b981;
+      --accent-rose: #f43f5e;
+      --accent-amber: #f59e0b;
+      --text-main: #f9fafb;
+      --text-muted: #9ca3af;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang TC", "Microsoft JhengHei", sans-serif;
+      background: var(--bg-gradient);
+      color: var(--text-main);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Top Progress Bar */
+    #progress-container {
+      width: 100%;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.05);
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 100;
+    }
+    #progress-bar {
+      height: 100%;
+      width: 10%;
+      background: linear-gradient(90deg, var(--accent-cyan), var(--accent-indigo));
+      transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Header Bar */
+    header {
+      padding: 18px 36px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 50;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .badge-tag {
+      background: rgba(99, 102, 241, 0.15);
+      color: #a5b4fc;
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .header-title {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    /* Slides Viewport */
+    #deck-container {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 48px;
+    }
+
+    .slide {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      padding: 32px 64px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateX(60px) scale(0.98);
+      transition: all 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .slide.active {
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(0) scale(1);
+    }
+
+    .slide.prev {
+      opacity: 0;
+      visibility: hidden;
+      transform: translateX(-60px) scale(0.98);
+    }
+
+    /* Slide Typography */
+    .slide-eyebrow {
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--accent-cyan);
+      margin-bottom: 8px;
+    }
+
+    .slide-title {
+      font-size: 2.2rem;
+      font-weight: 800;
+      line-height: 1.25;
+      margin-bottom: 16px;
+      background: linear-gradient(135deg, #ffffff 40%, #cbd5e1 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .slide-desc {
+      font-size: 1.05rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+      max-width: 900px;
+      margin-bottom: 24px;
+    }
+
+    /* Grid Layouts for Content */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+
+    /* Card Component */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 22px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .card:hover {
+      border-color: rgba(255, 255, 255, 0.18);
+      transform: translateY(-2px);
+    }
+    .card.accent-blue { border-top: 3px solid var(--accent-blue); }
+    .card.accent-emerald { border-top: 3px solid var(--accent-emerald); }
+    .card.accent-rose { border-top: 3px solid var(--accent-rose); }
+    .card.accent-amber { border-top: 3px solid var(--accent-amber); }
+    .card.accent-indigo { border-top: 3px solid var(--accent-indigo); }
+
+    .card h3 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card p, .card li {
+      font-size: 0.92rem;
+      color: #cbd5e1;
+      line-height: 1.6;
+    }
+    .card ul {
+      list-style-type: none;
+    }
+    .card ul li {
+      position: relative;
+      padding-left: 18px;
+      margin-bottom: 8px;
+    }
+    .card ul li::before {
+      content: "•";
+      color: var(--accent-cyan);
+      font-weight: bold;
+      position: absolute;
+      left: 4px;
+    }
+
+    /* Metric Display */
+    .metric-box {
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 12px;
+      padding: 14px 18px;
+      text-align: center;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .metric-val {
+      font-size: 1.9rem;
+      font-weight: 800;
+      color: #ffffff;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      margin-bottom: 4px;
+    }
+    .metric-val.emerald { color: var(--accent-emerald); }
+    .metric-val.cyan { color: var(--accent-cyan); }
+    .metric-val.rose { color: var(--accent-rose); }
+    .metric-val.amber { color: var(--accent-amber); }
+    .metric-label {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* Comparison Table */
+    table.slide-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      background: var(--card-bg);
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--card-border);
+    }
+    table.slide-table th, table.slide-table td {
+      padding: 12px 16px;
+      text-align: left;
+    }
+    table.slide-table th {
+      background: rgba(255, 255, 255, 0.05);
+      color: #e2e8f0;
+      font-weight: 600;
+      border-bottom: 1px solid var(--card-border);
+    }
+    table.slide-table tr:not(:last-child) td {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    }
+    table.slide-table tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    /* Bottom Control Bar */
+    footer {
+      padding: 16px 36px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      z-index: 50;
+    }
+    .nav-buttons {
+      display: flex;
+      gap: 12px;
+    }
+    button.nav-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: var(--text-main);
+      padding: 8px 18px;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+    button.nav-btn:hover {
+      background: rgba(255, 255, 255, 0.14);
+      border-color: rgba(255, 255, 255, 0.25);
+    }
+    #counter {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+    .shortcuts-hint {
+      font-size: 0.78rem;
+      color: #64748b;
+    }
+    .shortcuts-hint kbd {
+      background: rgba(255, 255, 255, 0.08);
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      font-family: monospace;
+    }
+
+    /* Grid Mode Modal */
+    #grid-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(3, 7, 18, 0.95);
+      backdrop-filter: blur(16px);
+      z-index: 200;
+      display: none;
+      padding: 48px;
+      overflow-y: auto;
+    }
+    #grid-modal.open {
+      display: block;
+    }
+    .grid-view-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .thumbnails-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+    }
+    .thumb-card {
+      background: rgba(17, 24, 39, 0.8);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 16px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .thumb-card:hover, .thumb-card.active {
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 16px rgba(6, 182, 212, 0.25);
+    }
+    .thumb-num {
+      font-size: 0.8rem;
+      color: var(--accent-cyan);
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .thumb-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #f1f5f9;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Progress Indicator -->
+  <div id="progress-container"><div id="progress-bar"></div></div>
+
+  <!-- Header -->
+  <header>
+    <div style="display: flex; align-items: center; gap: 14px;">
+      <span class="badge-tag">Wiki LLM Quant Research</span>
+      <span class="header-title">學術實證專題：AI 在股市分析上的應用與問題</span>
+    </div>
+    <div style="display: flex; gap: 12px; align-items: center;">
+      <button class="nav-btn" onclick="toggleGrid()">📑 目錄全覽 (O)</button>
+      <button class="nav-btn" onclick="toggleFullScreen()">⛶ 全螢幕 (F)</button>
+    </div>
+  </header>
+
+  <!-- Deck Viewport -->
+  <main id="deck-container">
+
+    <!-- SLIDE 1: Cover -->
+    <div class="slide active" id="slide-1">
+      <div class="slide-eyebrow">Executive Presentation & Research Synthesis</div>
+      <h1 class="slide-title" style="font-size: 3rem; margin-bottom: 20px;">
+        AI 在股市分析上的<br><span style="background: linear-gradient(90deg, #06b6d4, #6366f1); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">應用價值與實務陷阱</span>
+      </h1>
+      <p class="slide-desc" style="font-size: 1.2rem; margin-bottom: 36px;">
+        從現代計量資產定價 (Machine Learning) 到大語言模型 (LLMs) 的頂級期刊實證洞察
+      </p>
+
+      <div class="grid-4" style="max-width: 1050px;">
+        <div class="metric-box">
+          <div class="metric-val cyan">60年</div>
+          <div class="metric-label">美股全市場回測 (GKX 2020)</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-val emerald">1.35~2.45</div>
+          <div class="metric-label">神經網絡多空年化夏普值</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-val cyan">93.3%</div>
+          <div class="metric-label">GPT-4 隔夜新聞即時判斷勝率</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-val rose">6.54 ➔ 1.22</div>
+          <div class="metric-label">AI 普及驅動的 Alpha 自我消亡</div>
+        </div>
+      </div>
+      <div style="margin-top: 32px; font-size: 0.85rem; color: #64748b;">
+        實證文獻庫支撐：Review of Financial Studies (2009, 2020), Journal of Financial Economics (2026)
+      </div>
+    </div>
+
+    <!-- SLIDE 2: Paradigm Shift -->
+    <div class="slide" id="slide-2">
+      <div class="slide-eyebrow">Evolutionary Framework</div>
+      <h2 class="slide-title">金融 AI 分析的「三次範式轉移」</h2>
+      <p class="slide-desc">
+        從線性計量模型走向非線性深度學習，再到具備語意理解的生成式大模型，AI 處理金融資料的能力正經歷維度上的躍遷。
+      </p>
+
+      <div class="grid-3">
+        <div class="card accent-blue">
+          <h3>1. 經典截面計量 (1970–2010s)</h3>
+          <p style="color: var(--accent-cyan); font-weight: 600; margin-bottom: 8px;">線性 OLS / Fama-MacBeth</p>
+          <ul>
+            <li><strong>特徵維度</strong>：3~5 個低維因子 (Size, Value, Mom)。</li>
+            <li><strong>致命缺陷</strong>：面對 900+ 因子時出現嚴重多重共線性與過擬合，樣外 $R^2$ 崩跌至 -3.46%。</li>
+            <li><strong>假設局限</strong>：強加線性可加性，遺失因子間的複雜非線性交互作用。</li>
+          </ul>
+        </div>
+
+        <div class="card accent-indigo">
+          <h3>2. 統計機器學習 (2015–2020s)</h3>
+          <p style="color: #a5b4fc; font-weight: 600; margin-bottom: 8px;">GBRT, RF, NN1–NN5 (GKX 2020)</p>
+          <ul>
+            <li><strong>特徵維度</strong>：數百個表格特徵 + 總體經濟交互變數。</li>
+            <li><strong>突破點</strong>：正則化、降維 (PCR/PLS) 與樹模型/淺層神經網絡，成功提煉多因子交互 Alpha。</li>
+            <li><strong>邊界</strong>：無法處理非結構化新聞文字與即時突發事件。</li>
+          </ul>
+        </div>
+
+        <div class="card accent-emerald">
+          <h3>3. 大語言模型 (2023–Now)</h3>
+          <p style="color: var(--accent-emerald); font-weight: 600; margin-bottom: 8px;">GPT-4, Llama2-70B (JFE 2026)</p>
+          <ul>
+            <li><strong>特徵維度</strong>：無標籤非結構化新聞、財報、法說會文字。</li>
+            <li><strong>突破點</strong>：千億級參數湧現經濟學邏輯與因果推理，零樣本 (Zero-Shot) 判斷即時市場衝擊。</li>
+            <li><strong>新挑戰</strong>：資訊擴散過快導致 Alpha 快速衰減，交易成本嚴重侵蝕獲利。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 3: Numerical ML Application (GKX 2020) -->
+    <div class="slide" id="slide-3">
+      <div class="slide-eyebrow">Application 1: Cross-Sectional Asset Pricing</div>
+      <h2 class="slide-title">數值型機器學習：高維因子定價與多空策略</h2>
+      <p class="slide-desc">
+        Gu, Kelly, and Xiu (2020 RFS) 奠基實證：以美股 60 年近 30,000 檔個股與 920+ 信號，確立機器學習在資產定價的統治地位。
+      </p>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3 style="color: var(--accent-cyan);">📊 關鍵實證結果矩陣</h3>
+          <table class="slide-table" style="margin-top: 8px;">
+            <thead>
+              <tr>
+                <th>模型規格</th>
+                <th>月度樣外 $R^2_{oos}$</th>
+                <th>多空年化夏普 (VW)</th>
+                <th>等權夏普 (EW)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>全變數 OLS</td>
+                <td style="color: var(--accent-rose);">-3.46% (崩潰)</td>
+                <td>—</td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td>三因子 OLS-3</td>
+                <td>0.16%</td>
+                <td>0.61</td>
+                <td>0.83</td>
+              </tr>
+              <tr>
+                <td>降維 PLS / PCR</td>
+                <td>0.27%</td>
+                <td>0.72 ~ 0.88</td>
+                <td>1.94</td>
+              </tr>
+              <tr>
+                <td>隨機森林 RF</td>
+                <td>0.33%</td>
+                <td>0.98</td>
+                <td>1.30</td>
+              </tr>
+              <tr>
+                <td><strong>3層神經網絡 NN3</strong></td>
+                <td style="color: var(--accent-emerald); font-weight: 700;">0.40% (大型股 0.70%)</td>
+                <td style="color: var(--accent-emerald); font-weight: 700;">1.20 ~ 1.35</td>
+                <td style="color: var(--accent-emerald); font-weight: 700;">2.45</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card accent-cyan">
+          <h3>💡 核心實證洞見</h3>
+          <ul>
+            <li><strong>跨模型公認四大支配性信號</strong>：
+              <br>1. 價格趨勢（短期反轉 <code>mom1m</code>、12個月動能 <code>mom12m</code>）
+              <br>2. 流動性指標（市值、換手率、Amihud 非流動性）
+              <br>3. 波動度與風險（總波動度、特質風險 <code>idiovol</code>）
+              <br>4. 基本面估值比率（Earnings-to-Price, Sales-to-Price）
+            </li>
+            <li><strong>非流動性假說被破除</strong>：在大型股池 (Top 1000) 中，NN3 的 $R^2_{oos}$ 高達 <strong>0.70%</strong>，證明預測力並非微型股的流動性摩擦雜訊。</li>
+            <li><strong>大盤擇時能力</strong>：NN3 預測 S&P 500 月度 $R^2$ 達 1.80%，將指數 Buy-and-Hold 夏普值從 0.51 提升至 0.77。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 4: LLM Application (Lopez-Lira & Tang 2026) -->
+    <div class="slide" id="slide-4">
+      <div class="slide-eyebrow">Application 2: Unstructured News Intelligence</div>
+      <h2 class="slide-title">大語言模型：新聞語意因果推理與即時定價</h2>
+      <p class="slide-desc">
+        Lopez-Lira & Tang (2026 JFE) 標竿實證：GPT-4 展現出零樣本 (Zero-Shot) 理解財經新聞並預測股價動向的強悍實證能力。
+      </p>
+
+      <div class="grid-2">
+        <div class="card accent-emerald">
+          <h3 style="color: var(--accent-emerald);">🎯 雙階段預測表現 (Overnight News)</h3>
+          <div class="grid-2" style="margin: 14px 0;">
+            <div class="metric-box">
+              <div class="metric-val emerald">93.3%</div>
+              <div class="metric-label">隔夜新聞初始開盤方向勝率</div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-val cyan">3.06%</div>
+              <div class="metric-label">即時跳空平均多空點差</div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-val emerald">34 bps</div>
+              <div class="metric-label">隔日漂移日均報酬 (Drift)</div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-val cyan">2.97</div>
+              <div class="metric-label">漂移策略年化夏普值</div>
+            </div>
+          </div>
+          <p style="font-size: 0.88rem; color: #94a3b8;">
+            ※ 初始反應反映 LLM 精準捕捉市場共識；事後 1~2 天漂移則提供實質可執行的套利空間。
+          </p>
+        </div>
+
+        <div class="card">
+          <h3 style="color: var(--accent-indigo);">🧩 語意理解典範案例：收購終止</h3>
+          <div style="background: rgba(0,0,0,0.3); border-radius: 8px; padding: 12px; margin-bottom: 12px; border-left: 3px solid var(--accent-indigo);">
+            <div style="font-size: 0.82rem; color: var(--accent-cyan); font-family: monospace;">新聞頭條</div>
+            <div style="font-size: 0.95rem; font-weight: 600; margin-top: 4px;">"Cigna Calls Off Humana Pursuit, Plans Big Stock Buyback"</div>
+          </div>
+          <ul>
+            <li><strong>傳統情緒字典 / 資料商</strong>：給予 Humana +0.65 正面評分（因包含 Buyback 利多詞彙）。</li>
+            <li><strong>GPT-4 深度推理判斷</strong>：評定為 <strong>負向 (NO)</strong>！
+              <br><em style="color: #94a3b8; font-size: 0.85rem;">「Cigna 放棄收購代表 Humana 股價將失去潛在併購溢價 (Acquisition Premium)，短線將承壓下跌。」</em>
+            </li>
+            <li><strong>實證意義</strong>：證明大模型超越單純字詞統計，具備評估商業因果脈絡的真實專家能力。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 5: Topic Heterogeneity & Underreaction -->
+    <div class="slide" id="slide-5">
+      <div class="slide-eyebrow">Application 3: Behavioral Insights & Frictions</div>
+      <h2 class="slide-title">捕捉市場反應不足：新聞主題與套利限制</h2>
+      <p class="slide-desc">
+        AI 不僅能預測市場，更成為解剖「市場資訊處理瓶頸」的顯微鏡——揭示哪類新聞定價高效，哪類引發嚴重反應不足。
+      </p>
+
+      <div class="grid-2">
+        <div class="card accent-cyan">
+          <h3>⚡ 高效反映主題 (無事後漂移)</h3>
+          <p style="color: var(--accent-cyan); font-size: 0.85rem; margin-bottom: 8px;">特徵：高度格式化、數值明確、易於量化</p>
+          <table class="slide-table">
+            <thead>
+              <tr><th>新聞主題類別</th><th>開盤即時對齊度</th><th>事後漂移回報</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>財報與營收公告 (Earnings)</td><td>+336.7 bps***</td><td style="color: var(--text-muted);">-4.7 bps (無漂移)</td></tr>
+              <tr><td>戰略夥伴結盟 (Partnerships)</td><td>+92.7 bps***</td><td style="color: var(--text-muted);">+4.3 bps (無漂移)</td></tr>
+              <tr><td>新藥臨床試驗 (Clinical Trials)</td><td>+308.5 bps***</td><td style="color: var(--text-muted);">-11.4 bps (無漂移)</td></tr>
+            </tbody>
+          </table>
+          <p style="font-size: 0.85rem; color: #94a3b8; margin-top: 10px;">
+            市場瞬間完全定價，開盤後無顯著超額獲利機會。
+          </p>
+        </div>
+
+        <div class="card accent-rose">
+          <h3>⏳ 顯著反應不足主題 (強烈持續漂移)</h3>
+          <p style="color: var(--accent-rose); font-size: 0.85rem; margin-bottom: 8px;">特徵：非結構化、需要多方動機與產業專業推理</p>
+          <table class="slide-table">
+            <thead>
+              <tr><th>新聞主題類別</th><th>開盤即時對齊度</th><th>事後漂移回報</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>內部人股權交易 (Insider Trading)</td><td>+71.4 bps***</td><td style="color: var(--accent-emerald); font-weight: 700;">+26.3 bps***</td></tr>
+              <tr><td>醫療產業研討會演講 (Conferences)</td><td>+103.5 bps***</td><td style="color: var(--accent-emerald); font-weight: 700;">+34.2 bps*</td></tr>
+              <tr><td>股利政策變更 (Dividends)</td><td>+45.5 bps***</td><td style="color: var(--accent-emerald); font-weight: 700;">+22.3 bps***</td></tr>
+            </tbody>
+          </table>
+          <p style="font-size: 0.85rem; color: #94a3b8; margin-top: 10px;">
+            散戶與邊際交易者難以第一時間解讀，價格在 1~2 天內持續漂移。
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 6: Challenge 1 - Low SNR & Overfitting -->
+    <div class="slide" id="slide-6">
+      <div class="slide-eyebrow">Challenge 1: Statistical Pitfalls</div>
+      <h2 class="slide-title">金融「極低訊噪比」與過擬合陷阱</h2>
+      <p class="slide-desc">
+        將計算機視覺或自然語言的深層架構直接搬到金融市場是致命錯誤：金融資料具有高噪訊、非平穩與重尾特質。
+      </p>
+
+      <div class="grid-3">
+        <div class="card accent-rose">
+          <h3>1. 淺層勝過深層 (Shallow > Deep)</h3>
+          <ul>
+            <li><strong>神經網絡極限</strong>：GKX (2020) 實證顯示，神經網絡在 <strong>3 層隱藏層 (NN3)</strong> 達到頂峰，4~5 層性能反而急劇倒退。</li>
+            <li><strong>決策樹深度</strong>：梯度提升樹與隨機森林的最佳平均深度小於 <strong>6 片葉子</strong>。</li>
+            <li><strong>本質</strong>：金融市場有效性使超額 Alpha 訊號極其微弱，過深的模型只會完美擬合歷史噪訊。</li>
+          </ul>
+        </div>
+
+        <div class="card accent-amber">
+          <h3>2. 肥尾極值與 Huber 損失穩健化</h3>
+          <ul>
+            <li><strong>經典 MSE 缺陷</strong>：最小平方 ($L_2$) 損失函數賦予離群極端值過大權重，極易被黑天鵝擾亂參數。</li>
+            <li><strong>Huber 損失函數</strong>：
+              $$\text{Huber}(x) = \begin{cases} x^2 & |x| \le \xi \\ 2\xi|x| - \xi^2 & |x| > \xi \end{cases}$$
+            </li>
+            <li>在小誤差處維持二次平滑，大誤差處轉為線性絕對值懲罰，大幅改善樣外泛化能力。</li>
+          </ul>
+        </div>
+
+        <div class="card accent-blue">
+          <h3>3. 降維 (PCA/PLS) 優於特徵篩選 (Lasso)</h3>
+          <ul>
+            <li><strong>因子共線問題</strong>：數百個技術與基本面指標多為「近親」，高度共線且充滿噪音。</li>
+            <li><strong>Lasso 局限</strong>：硬性強加稀疏性 (Sparsity) 往往隨機丟棄具有互補性的重要特徵。</li>
+            <li><strong>實證優勢</strong>：主成分回歸 (PCR) 與偏最小平方 (PLS) 將多特徵線性組合，有效<strong>「平均濾除噪訊」</strong>。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 7: Challenge 2 - Model Scale & Threshold -->
+    <div class="slide" id="slide-7">
+      <div class="slide-eyebrow">Challenge 2: Architectural Thresholds</div>
+      <h2 class="slide-title">模型規模的「臨界門檻效應」與解釋性</h2>
+      <p class="slide-desc">
+        文字分析領域並非所有 AI 都能賺錢：金融推理是超大參數模型的專利，而「黑盒子」難題依然籠罩。
+      </p>
+
+      <div class="grid-2">
+        <div class="card accent-amber">
+          <h3 style="color: var(--accent-amber);">📉 規模臨界門檻 ($k^*$)：小模型全軍覆沒</h3>
+          <table class="slide-table" style="margin-top: 8px;">
+            <thead>
+              <tr><th>模型等級</th><th>參數規模</th><th>漂移夏普值 (Sharpe)</th><th>判斷特徵</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>GPT-1 / GPT-2</td><td>1.1 ~ 1.2 億</td><td style="color: var(--accent-rose);">-0.64 / -0.11</td><td>方向頻繁錯誤</td></tr>
+              <tr><td>BERT / BERT-Large</td><td>1.1 ~ 3.3 億</td><td style="color: var(--accent-rose);">-0.47 / +1.05</td><td>小模型夏普為負</td></tr>
+              <tr><td>FinBERT (金融專用)</td><td>1.1 億</td><td style="color: var(--accent-rose);">-0.33</td><td>75% 標為中性，預測無效</td></tr>
+              <tr><td>Llama2-7B ➔ 70B</td><td>70 億 ➔ 700 億</td><td style="color: var(--accent-emerald);">-0.43 ➔ +0.97</td><td>十倍參數跨越臨界門檻</td></tr>
+              <tr><td><strong>GPT-4 (旗艦)</strong></td><td>約 1.8 兆 (MoE)</td><td style="color: var(--accent-emerald); font-weight: 700;">+2.97</td><td>深層語意湧現，全面勝出</td></tr>
+            </tbody>
+          </table>
+          <p style="font-size: 0.85rem; color: #94a3b8; margin-top: 8px;">
+            結論：低於臨界複雜度的模型，信噪比不足以克服市場摩擦，無法形成盈利策略。
+          </p>
+        </div>
+
+        <div class="card">
+          <h3 style="color: var(--accent-indigo);">🔍 雙重範式對決：Zero-Shot vs Embeddings</h3>
+          <ul>
+            <li><strong>監督式向量嵌入 (Embeddings) 的崩潰</strong>：
+              <br>依賴「新聞向量 ➔ 歷史收益」統計擬合的模型，在盤中新聞小樣本情境下表現崩潰（夏普跌至 0.79）。
+            </li>
+            <li><strong>零樣本對話推理 (Prompting) 的韌性</strong>：
+              <br>GPT-4 無需歷史收益樣本微調，憑藉預訓練階段掌握的實體關係即可穩定輸出 2.63~2.97 夏普值。
+            </li>
+            <li><strong>黑盒子權衡 (Interpretability)</strong>：
+              <br>數值型神經網絡難以直觀拆解因果；大語言模型透過逐筆產生「推理句子 (Reasoning)」開闢了全新的白盒子監管路徑。
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 8: Challenge 3 - Transaction Costs & Microstructure -->
+    <div class="slide" id="slide-8">
+      <div class="slide-eyebrow">Challenge 3: Real-World Execution</div>
+      <h2 class="slide-title">交易摩擦、高換手率與訂單簿微觀陷阱</h2>
+      <p class="slide-desc">
+        紙上富貴 vs 實盤落地的鴻溝：若忽視台股千分之三證交稅、買賣價差與衝擊成本，AI 策略將迅速走向虧損。
+      </p>
+
+      <div class="grid-3">
+        <div class="card accent-rose">
+          <h3>1. 每日再平衡的高換手致命傷</h3>
+          <ul>
+            <li><strong>高換手損耗</strong>：GPT-4 每日新聞策略在 100% 每日換手下，日周轉率高達 <strong>190%</strong>。</li>
+            <li><strong>成本耐受極限</strong>：來回交易成本 <strong>10 bps</strong> 時，夏普值腰斬至 1.29；達 <strong>20 bps</strong> 時策略完全虧損。</li>
+            <li><strong>工程優化解方</strong>：採 <strong>25% 部分再平衡</strong>，換手率降至每日 46%，在 10 bps 成本下夏普值反升至 <strong>1.34</strong>。</li>
+          </ul>
+        </div>
+
+        <div class="card accent-amber">
+          <h3>2. 放空限制與不對稱套利障礙</h3>
+          <ul>
+            <li><strong>負面新聞漂移暴利</strong>：GPT-4 放空腳夏普值達 <strong>2.01</strong>，做多腳僅 <strong>0.78</strong>。</li>
+            <li><strong>實務執行阻礙</strong>：融券配額不足、借券費率高昂、平盤以下不得放空等法規限制，使做空難度遠高於做多。</li>
+            <li>這意味著 AI 發現的最高超額收益，往往恰恰是受限於制度而最難完整收割的部位。</li>
+          </ul>
+        </div>
+
+        <div class="card accent-blue">
+          <h3>3. 台股微觀經驗：積極單 vs 被動單</h3>
+          <ul>
+            <li><strong>Barber et al. (2009 RFS) 警示</strong>：台股散戶每年損失 GDP 的 2.2%（3.8% 年化懲罰），<strong>100% 來自積極追價單</strong>。</li>
+            <li><strong>AI 執行算法關鍵</strong>：AI 量化交易若只使用「市價吃單」，將承受巨大衝擊成本；必須學習外資與機構，兼備<strong>「被動限價造市」</strong>與<strong>「長線知情追價」</strong>雙軌執行。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 9: Challenge 4 - Alpha Decay & Self-Obsolescence -->
+    <div class="slide" id="slide-9">
+      <div class="slide-eyebrow">Challenge 4: Market Dynamics & Equilibrium</div>
+      <h2 class="slide-title">Alpha 的自我消亡：AI 普及與市場效率回饋</h2>
+      <p class="slide-desc">
+        AI 投資的終極哲學悖論：大語言模型越普及、越聰明，其自身創造的超額 Alpha 衰減速度就越快。
+      </p>
+
+      <div class="grid-2">
+        <div class="card accent-rose">
+          <h3 style="color: var(--accent-rose);">📉 實證記錄：夏普值的逐年崩塌 (2021–2024)</h3>
+          <div style="margin: 16px 0;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+              <span>2021 年 Q4 (初期)</span>
+              <strong style="color: var(--accent-emerald);">Sharpe 6.54</strong>
+            </div>
+            <div style="background: rgba(255,255,255,0.05); height: 8px; border-radius: 4px; overflow: hidden; margin-bottom: 14px;">
+              <div style="width: 100%; height: 100%; background: var(--accent-emerald);"></div>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+              <span>2022 年</span>
+              <strong style="color: var(--accent-cyan);">Sharpe 3.68</strong>
+            </div>
+            <div style="background: rgba(255,255,255,0.05); height: 8px; border-radius: 4px; overflow: hidden; margin-bottom: 14px;">
+              <div style="width: 56%; height: 100%; background: var(--accent-cyan);"></div>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+              <span>2023 年 (ChatGPT 爆發)</span>
+              <strong style="color: var(--accent-amber);">Sharpe 2.33</strong>
+            </div>
+            <div style="background: rgba(255,255,255,0.05); height: 8px; border-radius: 4px; overflow: hidden; margin-bottom: 14px;">
+              <div style="width: 35%; height: 100%; background: var(--accent-amber);"></div>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+              <span>2024 年 1~5月</span>
+              <strong style="color: var(--accent-rose);">Sharpe 1.22</strong>
+            </div>
+            <div style="background: rgba(255,255,255,0.05); height: 8px; border-radius: 4px; overflow: hidden;">
+              <div style="width: 18%; height: 100%; background: var(--accent-rose);"></div>
+            </div>
+          </div>
+          <p style="font-size: 0.85rem; color: #94a3b8;">
+            數據來源：Lopez-Lira & Tang (JFE 2026, Fig. 8)，展示隔夜新聞策略夏普值的持續下滑。
+          </p>
+        </div>
+
+        <div class="card">
+          <h3 style="color: var(--accent-cyan);">⚙️ 理論機制：資訊處理能力的民主化</h3>
+          <ul>
+            <li><strong>賦能非專注投資者 (Theorem 2)</strong>：
+              <br>傳統量化工具需要高深統計與程式門檻；LLM 的自然語言對話介面讓一般大眾與初級分析師也能秒級分析非結構化新聞，填補了認知鴻溝。
+            </li>
+            <li><strong>價格衝擊 (Price Impact) 與套利空間壓縮</strong>：
+              <br>越來越多市場參與者在同時間對相同的 AI 訊號採取同向交易，集體買賣盤直接推升開盤價，抹平了後續的價格漂移。
+            </li>
+            <li><strong>「自我消亡的種子 (Seeds of Obsolescence)」</strong>：
+              <br>一個能夠準確識別未被定價資訊的 AI 工具，必然因自身被廣泛採納而將資訊提前反映於價格中，加速市場邁向半強式效率市場。
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 10: Summary & Hybrid Future -->
+    <div class="slide" id="slide-10">
+      <div class="slide-eyebrow">Conclusion & Architecture Outlook</div>
+      <h2 class="slide-title">未來金融 AI 架構：新一代「混合智能 (Hybrid Quant)」</h2>
+      <p class="slide-desc">
+        AI 在股市分析中絕非全知的水晶球，而是提升市場定價效率的強大工具。單一模型已死，未來的致勝架構是「多模態混合系統」。
+      </p>
+
+      <div class="grid-3">
+        <div class="card accent-indigo">
+          <h3>1. 數值與文字雙引擎</h3>
+          <p style="font-size: 0.88rem; color: #cbd5e1; margin-bottom: 8px;">
+            結合 <strong>GKX (2020) 淺層神經網絡</strong>（處理數百個表格特徵與總體交互）與 <strong>Lopez-Lira & Tang (2026) LLM 推理</strong>（處理非結構化新聞與財報），兼顧長期基線價值與短期事件衝擊。
+          </p>
+        </div>
+
+        <div class="card accent-emerald">
+          <h3>2. 微觀結構與智慧執行</h3>
+          <p style="font-size: 0.88rem; color: #cbd5e1; margin-bottom: 8px;">
+            借鑑 <strong>Barber et al. (2009)</strong> 的訂單簿洞察，拒絕單純積極吃單，導入被動限價造市算法與部分再平衡 (Partial Rebalancing)，嚴格控制交易衝擊與摩擦成本。
+          </p>
+        </div>
+
+        <div class="card accent-cyan">
+          <h3>3. 動態知識庫維護 (Wiki LLM)</h3>
+          <p style="font-size: 0.88rem; color: #cbd5e1; margin-bottom: 8px;">
+            落實 Karpathy LLM Wiki 精神：隨文獻與市場行情持續更新因子矩陣，即時標註「策略衰退」與「結構變遷」，使投資系統具備長效複利積累能力。
+          </p>
+        </div>
+      </div>
+
+      <div style="margin-top: 28px; background: rgba(255, 255, 255, 0.03); border: 1px dashed rgba(255, 255, 255, 0.15); border-radius: 12px; padding: 16px 24px; text-align: center;">
+        <span style="color: var(--accent-cyan); font-weight: 700; font-size: 1.1rem;">
+          "The question is no longer whether AI can predict stock prices, but how fast the market absorbs its intelligence."
+        </span>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Footer Navigation Controls -->
+  <footer>
+    <div class="shortcuts-hint">
+      提示：按鍵盤 <kbd>←</kbd> <kbd>→</kbd> 或 <kbd>Space</kbd> 切換 ｜ 按 <kbd>F</kbd> 全螢幕 ｜ 按 <kbd>O</kbd> 全覽目錄
+    </div>
+    <div class="nav-buttons">
+      <button class="nav-btn" onclick="prevSlide()">◀ 上一頁</button>
+      <div id="counter" style="display: flex; align-items: center; padding: 0 8px;">01 / 10</div>
+      <button class="nav-btn" onclick="nextSlide()">下一頁 ▶</button>
+    </div>
+  </footer>
+
+  <!-- Grid View Modal -->
+  <div id="grid-modal" onclick="if(event.target === this) toggleGrid()">
+    <div class="grid-view-title">
+      <span>📑 投影片全覽目錄 (點擊直接跳轉)</span>
+      <button class="nav-btn" onclick="toggleGrid()">✕ 關閉</button>
+    </div>
+    <div class="thumbnails-grid" id="thumbnails-grid"></div>
+  </div>
+
+  <script>
+    let currentSlide = 1;
+    const totalSlides = 10;
+    const slides = document.querySelectorAll('.slide');
+    const progressBar = document.getElementById('progress-bar');
+    const counter = document.getElementById('counter');
+    const gridModal = document.getElementById('grid-modal');
+    const thumbnailsGrid = document.getElementById('thumbnails-grid');
+
+    const slideTitles = [
+      "封面：AI在股市分析上的應用價值與實務陷阱",
+      "全景範式轉移：從線性計量到生成式 AI",
+      "應用場景 1：數值型機器學習與截面資產定價",
+      "應用場景 2：大語言模型與新聞即時因果推理",
+      "應用場景 3：捕捉市場反應不足與微觀摩擦",
+      "關鍵問題 1：金融極低訊噪比與過擬合陷阱",
+      "關鍵問題 2：模型規模臨界門檻與黑盒子可解釋性",
+      "關鍵問題 3：交易摩擦、執行成本與微觀結構",
+      "關鍵問題 4：Alpha 的自我消亡與市場效率回饋",
+      "總結與展望：新一代「混合智能 (Hybrid Quant)」架構"
+    ];
+
+    // Initialize Grid Thumbnails
+    function initThumbnails() {
+      thumbnailsGrid.innerHTML = '';
+      slideTitles.forEach((title, idx) => {
+        const num = idx + 1;
+        const card = document.createElement('div');
+        card.className = `thumb-card ${num === currentSlide ? 'active' : ''}`;
+        card.onclick = () => {
+          goToSlide(num);
+          toggleGrid();
+        };
+        card.innerHTML = `
+          <div class="thumb-num">SLIDE ${String(num).padStart(2, '0')}</div>
+          <div class="thumb-title">${title}</div>
+        `;
+        thumbnailsGrid.appendChild(card);
+      });
+    }
+
+    function updateSlide() {
+      slides.forEach((slide, index) => {
+        const slideNum = index + 1;
+        slide.classList.remove('active', 'prev');
+        if (slideNum === currentSlide) {
+          slide.classList.add('active');
+        } else if (slideNum < currentSlide) {
+          slide.classList.add('prev');
+        }
+      });
+
+      // Update Progress and Counter
+      const progressPercent = (currentSlide / totalSlides) * 100;
+      progressBar.style.width = `${progressPercent}%`;
+      counter.innerText = `${String(currentSlide).padStart(2, '0')} / ${String(totalSlides).padStart(2, '0')}`;
+
+      // Update thumbnail active state if modal open
+      document.querySelectorAll('.thumb-card').forEach((thumb, idx) => {
+        if (idx + 1 === currentSlide) {
+          thumb.classList.add('active');
+        } else {
+          thumb.classList.remove('active');
+        }
+      });
+    }
+
+    function nextSlide() {
+      if (currentSlide < totalSlides) {
+        currentSlide++;
+        updateSlide();
+      }
+    }
+
+    function prevSlide() {
+      if (currentSlide > 1) {
+        currentSlide--;
+        updateSlide();
+      }
+    }
+
+    function goToSlide(num) {
+      if (num >= 1 && num <= totalSlides) {
+        currentSlide = num;
+        updateSlide();
+      }
+    }
+
+    function toggleFullScreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => {
+          alert(`無法進入全螢幕: ${err.message}`);
+        });
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        }
+      }
+    }
+
+    function toggleGrid() {
+      const isOpen = gridModal.classList.contains('open');
+      if (isOpen) {
+        gridModal.classList.remove('open');
+      } else {
+        initThumbnails();
+        gridModal.classList.add('open');
+      }
+    }
+
+    // Keyboard Event Listener
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+        e.preventDefault();
+        nextSlide();
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        e.preventDefault();
+        prevSlide();
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        goToSlide(1);
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        goToSlide(totalSlides);
+      } else if (e.key === 'f' || e.key === 'F') {
+        toggleFullScreen();
+      } else if (e.key === 'o' || e.key === 'O' || e.key === 'Escape') {
+        toggleGrid();
+      }
+    });
+
+    // Touch Support for mobile / iPad
+    let touchStartX = 0;
+    let touchEndX = 0;
+    document.addEventListener('touchstart', (e) => {
+      touchStartX = e.changedTouches[0].screenX;
+    });
+    document.addEventListener('touchend', (e) => {
+      touchEndX = e.changedTouches[0].screenX;
+      if (touchStartX - touchEndX > 50) {
+        nextSlide();
+      } else if (touchEndX - touchStartX > 50) {
+        prevSlide();
+      }
+    });
+
+    // Initial setup
+    updateSlide();
+  </script>
+</body>
+</html>
